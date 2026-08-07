@@ -55,12 +55,12 @@ KPI_CONFIG = {
             "windows": r'''powershell -NoProfile -Command "(Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty CurrentClockSpeed)"''',
         },
 
-        {
-            "name": "CPU Temperature",
-            "execution_order": 8,
-            "linux": "sensors",
-            "windows": r'''powershell -NoProfile -Command "$t=Get-CimInstance -Namespace root/WMI -ClassName MSAcpi_ThermalZoneTemperature -ErrorAction SilentlyContinue; if($t){[math]::Round((($t | Measure-Object CurrentTemperature -Average).Average / 10) - 273.15,2)}else{Write-Output 'N/A'}"''',
-        },
+        # {
+        #     "name": "CPU Temperature",
+        #     "execution_order": 8,
+        #     "linux": "sensors",
+        #     "windows": r'''powershell -NoProfile -Command "$t=Get-CimInstance -Namespace root/WMI -ClassName MSAcpi_ThermalZoneTemperature -ErrorAction SilentlyContinue; if($t){[math]::Round((($t | Measure-Object CurrentTemperature -Average).Average / 10) - 273.15,2)}else{Write-Output 'N/A'}"''',
+        # },
 
         {
             "name": "CPU Utilization by Core",
