@@ -1,5 +1,5 @@
-# infrastructure/services/metric_collector.py
 
+# infrastructure/services/metric_collector.py
 
 import csv
 import re
@@ -48,17 +48,105 @@ class MetricCollector:
         return None
 
     # ==========================================================
+    # FORMAT NUMBER
+    #
+    # Examples:
+    # 91.0  -> 91
+    # 100.0 -> 100
+    # 61.9  -> 61.9
+    # 0.0   -> 0
+    # ==========================================================
+
+    def format_number(self, value):
+
+        value = str(value).strip()
+
+        if not value:
+            return None
+
+        try:
+
+            number = float(value)
+
+            # Remove unnecessary .0
+            if number.is_integer():
+
+                return str(int(number))
+
+            return str(number)
+
+        except ValueError:
+
+            return value
+
+    # ==========================================================
+    # FORMAT UPTIME
+    #
+    # Input:
+    # 11040 seconds
+    #
+    # Output:
+    # 3 h 4 min
+    #
+    # Example:
+    # 90000 seconds
+    # -> 1 d 1 h 0 min
+    # ==========================================================
+
+    def format_uptime(self, seconds):
+
+        try:
+
+            seconds = int(float(seconds))
+
+        except (
+            ValueError,
+            TypeError
+        ):
+
+            return None
+
+        days = seconds // 86400
+
+        hours = (
+            seconds % 86400
+        ) // 3600
+
+        minutes = (
+            seconds % 3600
+        ) // 60
+
+        if days > 0:
+
+            return (
+                f"{days} d "
+                f"{hours} h "
+                f"{minutes} min"
+            )
+
+        return (
+            f"{hours} h "
+            f"{minutes} min"
+        )
+
+    # ==========================================================
     # PARSE SINGLE SCALAR VALUE
     # ==========================================================
 
-    def parse_value(self, output):
+    def parse_value(
+        self,
+        output,
+        metric_name=None
+    ):
 
         if output is None:
+
             return None
 
         text = str(output).strip()
 
         if not text:
+
             return None
 
         # ------------------------------------------------------
@@ -68,6 +156,14 @@ class MetricCollector:
         numeric_pattern = re.compile(
             r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)"
             r"(?:[eE][+-]?\d+)?$"
+        )
+
+        # ------------------------------------------------------
+        # Text/status values that we allow
+        # ------------------------------------------------------
+
+        text_status_pattern = re.compile(
+            r"^[A-Za-z][A-Za-z0-9 _-]*$"
         )
 
         # ------------------------------------------------------
@@ -81,56 +177,110 @@ class MetricCollector:
         ]
 
         # ------------------------------------------------------
-        # First priority:
+        # FIRST PRIORITY:
         # exact scalar output
-        #
-        # 131     -> 131.0
-        # 30      -> 30.0
-        # 0       -> 0.0
-        # 47.13   -> 47.13
-        # true     -> 1.0
-        # false    -> 0.0
         # ------------------------------------------------------
 
         for line in reversed(lines):
 
-            clean = line.strip().strip('"').strip()
+            clean = (
+                line
+                .strip()
+                .strip('"')
+                .strip()
+            )
 
             if not clean:
+
                 continue
 
-            # Boolean
+            # ==================================================
+            # BOOLEAN
+            # ==================================================
+
             if clean.lower() == "true":
-                return 1.0
+
+                return "True"
 
             if clean.lower() == "false":
-                return 0.0
 
-            # Exact number
-            normalized = clean.replace(",", "")
+                return "False"
 
-            if numeric_pattern.fullmatch(normalized):
+            # ==================================================
+            # EXACT NUMBER
+            # ==================================================
 
-                try:
-                    return float(normalized)
+            normalized = clean.replace(
+                ",",
+                ""
+            )
 
-                except ValueError:
-                    continue
+            if numeric_pattern.fullmatch(
+                normalized
+            ):
+
+                return self.format_number(
+                    normalized
+                )
+
+            # ==================================================
+            # STATUS / TEXT VALUE
+            #
+            # Examples:
+            # Healthy
+            # Unhealthy
+            # Unknown
+            # Running
+            # Stopped
+            # Active
+            # Inactive
+            # PASSED
+            # FAILED
+            # ==================================================
+
+            if text_status_pattern.fullmatch(
+                clean
+            ):
+
+                allowed_statuses = {
+                    "healthy",
+                    "unhealthy",
+                    "unknown",
+                    "running",
+                    "stopped",
+                    "active",
+                    "inactive",
+                    "enabled",
+                    "disabled",
+                    "passed",
+                    "failed",
+                    "available",
+                    "unavailable",
+                    "online",
+                    "offline",
+                    "connected",
+                    "disconnected"
+                }
+
+                if clean.lower() in allowed_statuses:
+
+                    return clean
 
         # ------------------------------------------------------
-        # Second priority:
+        # SECOND PRIORITY:
         # typeperf / CSV-like output
         #
         # Example:
         #
         # "08/07/2026 11:28:13.741","12.641489"
         #
-        # We take ONLY the final CSV field.
+        # Take ONLY final CSV field.
         # ------------------------------------------------------
 
         for line in reversed(lines):
 
             if "," not in line:
+
                 continue
 
             try:
@@ -149,42 +299,30 @@ class MetricCollector:
                 continue
 
             if not row:
+
                 continue
 
-            last_value = row[-1].strip().strip('"')
+            last_value = (
+                row[-1]
+                .strip()
+                .strip('"')
+            )
 
-            last_value = last_value.replace(
-                ",",
-                ""
+            last_value = (
+                last_value
+                .replace(",", "")
             )
 
             if numeric_pattern.fullmatch(
                 last_value
             ):
 
-                try:
-
-                    return float(
-                        last_value
-                    )
-
-                except ValueError:
-
-                    continue
+                return self.format_number(
+                    last_value
+                )
 
         # ------------------------------------------------------
-        # Third priority:
-        # find a line containing ONLY a number after trimming.
-        #
-        # This is intentionally strict.
-        #
-        # We DO NOT search arbitrary numbers inside a text line.
-        #
-        # This prevents:
-        #
-        # "Process 131 something 30"
-        #
-        # from accidentally becoming 30.
+        # No valid scalar/status value
         # ------------------------------------------------------
 
         return None
@@ -425,8 +563,34 @@ class MetricCollector:
                     # ==================================================
 
                     value = self.parse_value(
-                        raw_output
+
+                        raw_output,
+
+                        metric_name=kpi["name"]
                     )
+
+                    # ==================================================
+                    # FORMAT UPTIME
+                    #
+                    # Command returns seconds:
+                    #
+                    # 11040
+                    #
+                    # Database stores:
+                    #
+                    # 3 h 4 min
+                    # ==================================================
+
+                    if (
+                        value is not None
+                        and
+                        kpi["name"].strip().lower()
+                        == "uptime"
+                    ):
+
+                        value = self.format_uptime(
+                            value
+                        )
 
                     print(
                         f"Parsed value: {value}"
@@ -462,7 +626,7 @@ class MetricCollector:
                         message = (
                             "Command succeeded, "
                             "but output did not contain "
-                            "a valid scalar numeric/boolean value."
+                            "a valid scalar numeric/status value."
                         )
 
                         print(

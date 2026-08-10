@@ -3,9 +3,9 @@ from django.contrib import admin
 from infrastructure.models import (
     Server,
     MetricSample,
-    ProcessMetric,
-    ServiceMetric,
-    NetworkMetric
+    # ProcessMetric,
+    # ServiceMetric,
+    # NetworkMetric
 )
 from datetime import timedelta
 from django.utils import timezone
@@ -121,106 +121,106 @@ class MetricSampleAdmin(admin.ModelAdmin):
     host.short_description = "Host"
 
 
-@admin.register(ProcessMetric)
-class ProcessMetricAdmin(admin.ModelAdmin):
+# @admin.register(ProcessMetric)
+# class ProcessMetricAdmin(admin.ModelAdmin):
 
-    list_display = (
-        "host",
-        "process_name",
-        "process_id",
-        "handle_count",
-        "collection_time",
-    )
+#     list_display = (
+#         "host",
+#         "process_name",
+#         "process_id",
+#         "handle_count",
+#         "collection_time",
+#     )
 
-    list_filter = (
-        "collection_time",
-    )
+#     list_filter = (
+#         "collection_time",
+#     )
 
-    search_fields = (
-        "server__name",
-        "process_name",
-        "process_id",
-    )
+#     search_fields = (
+#         "server__name",
+#         "process_name",
+#         "process_id",
+#     )
 
-    date_hierarchy = "collection_time"
+#     date_hierarchy = "collection_time"
 
-    ordering = (
-        "-collection_time",
-    )
+#     ordering = (
+#         "-collection_time",
+#     )
 
-    def host(self, obj):
-        return obj.server.name
+#     def host(self, obj):
+#         return obj.server.name
 
-    host.short_description = "Host"
-
-
-@admin.register(ServiceMetric)
-class ServiceMetricAdmin(admin.ModelAdmin):
-
-    list_display = (
-        "host",
-        "service_name",
-        "display_name",
-        "status",
-        "start_type",
-        "collection_time",
-    )
-
-    list_filter = (
-        "status",
-        "start_type",
-        "collection_time",
-    )
-
-    search_fields = (
-        "server__name",
-        "service_name",
-        "display_name",
-    )
-
-    date_hierarchy = "collection_time"
-
-    ordering = (
-        "-collection_time",
-    )
-
-    def host(self, obj):
-        return obj.server.name
-
-    host.short_description = "Host"
+#     host.short_description = "Host"
 
 
-@admin.register(NetworkMetric)
-class NetworkMetricAdmin(admin.ModelAdmin):
+# @admin.register(ServiceMetric)
+# class ServiceMetricAdmin(admin.ModelAdmin):
 
-    list_display = (
-        "host",
-        "protocol",
-        "local_address",
-        "local_port",
-        "remote_address",
-        "remote_port",
-        "collection_time",
-    )
+#     list_display = (
+#         "host",
+#         "service_name",
+#         "display_name",
+#         "status",
+#         "start_type",
+#         "collection_time",
+#     )
 
-    list_filter = (
-        "protocol",
-        "collection_time",
-    )
+#     list_filter = (
+#         "status",
+#         "start_type",
+#         "collection_time",
+#     )
 
-    search_fields = (
-        "server__name",
-        "local_address",
-        "remote_address",
-    )
+#     search_fields = (
+#         "server__name",
+#         "service_name",
+#         "display_name",
+#     )
 
-    date_hierarchy = "collection_time"
+#     date_hierarchy = "collection_time"
 
-    ordering = (
-        "-collection_time",
-    )
+#     ordering = (
+#         "-collection_time",
+#     )
 
-    def host(self, obj):
-        return obj.server.name
+#     def host(self, obj):
+#         return obj.server.name
 
-    host.short_description = "Host"
+#     host.short_description = "Host"
+
+
+# @admin.register(NetworkMetric)
+# class NetworkMetricAdmin(admin.ModelAdmin):
+
+    # list_display = (
+    #     "host",
+    #     "protocol",
+    #     "local_address",
+    #     "local_port",
+    #     "remote_address",
+    #     "remote_port",
+    #     "collection_time",
+    # )
+
+    # list_filter = (
+    #     "protocol",
+    #     "collection_time",
+    # )
+
+    # search_fields = (
+    #     "server__name",
+    #     "local_address",
+    #     "remote_address",
+    # )
+
+    # date_hierarchy = "collection_time"
+
+    # ordering = (
+    #     "-collection_time",
+    # )
+
+    # def host(self, obj):
+    #     return obj.server.name
+
+    # host.short_description = "Host"
