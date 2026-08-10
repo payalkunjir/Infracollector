@@ -51,11 +51,7 @@ class MetricCollector:
     # FORMAT NUMBER
     #
     # Examples:
-    # 91.0  -> 91
-    # 100.0 -> 100
-    # 61.9  -> 61.9
-    # 0.0   -> 0
-    # ==========================================================
+    # 91.0            -> 91
 
     def format_number(self, value):
 
@@ -66,7 +62,7 @@ class MetricCollector:
 
         try:
 
-            number = float(value)
+            number = round(float(value), 2)
 
             # Remove unnecessary .0
             if number.is_integer():
@@ -82,15 +78,8 @@ class MetricCollector:
     # ==========================================================
     # FORMAT UPTIME
     #
-    # Input:
-    # 11040 seconds
-    #
     # Output:
     # 3 h 4 min
-    #
-    # Example:
-    # 90000 seconds
-    # -> 1 d 1 h 0 min
     # ==========================================================
 
     def format_uptime(self, seconds):
@@ -223,20 +212,6 @@ class MetricCollector:
                     normalized
                 )
 
-            # ==================================================
-            # STATUS / TEXT VALUE
-            #
-            # Examples:
-            # Healthy
-            # Unhealthy
-            # Unknown
-            # Running
-            # Stopped
-            # Active
-            # Inactive
-            # PASSED
-            # FAILED
-            # ==================================================
 
             if text_status_pattern.fullmatch(
                 clean
