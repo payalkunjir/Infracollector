@@ -229,6 +229,7 @@ class MetricCollector:
                     "disabled",
                     "passed",
                     "failed",
+                    "resolved",
                     "available",
                     "unavailable",
                     "online",

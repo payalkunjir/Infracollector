@@ -60,7 +60,11 @@ KPI_CONFIG = {
         {
             "name": "Load Average %",
             "execution_order": 4,
-            "linux": "awk '{print $1}' /proc/loadavg",
+            "linux": (
+                "awk -v ncpu=\"$(nproc)\" "
+                "'{ if (ncpu>0) printf \"%.2f\", ($1/ncpu)*100; else print $1 }' "
+                "/proc/loadavg"
+             ),
             "windows": r'''powershell -NoProfile -Command "(Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average"''',
         },
 
@@ -109,7 +113,7 @@ KPI_CONFIG = {
 
         {
             "name": "CPU Utilization by Core",
-            "execution_order": 9,
+            "execution_order": 8,
             "linux": (
                 "awk '"
                 "/^cpu[0-9]+ / {"
@@ -148,7 +152,7 @@ KPI_CONFIG = {
         },
 
         {
-            "name": "Used Memory  (MB)",
+            "name": "Used Memory (MB)",
             "execution_order": 2,
             "linux": "awk '/^MemTotal:/ {total=$2} /^MemAvailable:/ {avail=$2} END {printf \"%.2f\", (total-avail)/1024}' /proc/meminfo",
             "windows": r'''powershell -NoProfile -Command "$m=Get-CimInstance Win32_OperatingSystem; $total=$m.TotalVisibleMemorySize/1024; $free=$m.FreePhysicalMemory/1024; [math]::Round($total-$free,2)"''',
@@ -182,7 +186,18 @@ KPI_CONFIG = {
         {
             "name": "Major Page Faults",
             "execution_order": 5,
-            "linux": "awk '/^pgmajfault / {print $2}' /proc/vmstat",
+            "linux": (
+                "awk '"
+                "/^pgmajfault / { p1=$2 }"
+                "END {"
+                "system(\"sleep 1\");"
+                "while ((getline line < \"/proc/vmstat\") > 0) {"
+                "if (line ~ /^pgmajfault /) { split(line,a,\" \"); p2=a[2] }"
+                "}"
+                "close(\"/proc/vmstat\");"
+                "printf \"%.2f\", (p2-p1);"
+                "}' /proc/vmstat"
+            ),
             "windows": r'''powershell -NoProfile -Command "(Get-Counter '\Memory\Pages Input/sec' -MaxSamples 1).CounterSamples[0].CookedValue"''',
         },
 
@@ -270,9 +285,11 @@ KPI_CONFIG = {
         {
             "name": "SMART Health",
             "execution_order": 5,
-            "linux": (
+             "linux": (
                 "command -v smartctl >/dev/null 2>&1 && "
-                "{ h=$(smartctl -H /dev/sda 2>/dev/null | "
+                "{ dev=$(awk '$3 ~ /^(sd[a-z]+|vd[a-z]+|xvd[a-z]+|nvme[0-9]+n[0-9]+|mmcblk[0-9]+)$/ {print $3; exit}' /proc/diskstats); "
+                "if [ -z \"$dev\" ]; then echo Unknown; exit; fi; "
+                "h=$(smartctl -H \"/dev/$dev\" 2>/dev/null | "
                 "awk -F: '/overall-health/{gsub(/^ +| +$/,\"\",$2); print $2}'); "
                 "if [ \"$h\" = \"PASSED\" ]; then echo Healthy; "
                 "elif [ -n \"$h\" ]; then echo Unhealthy; "
@@ -372,17 +389,17 @@ KPI_CONFIG = {
     "SERVICES": [
 
         {
-            "name": "Service Status",
+            "name": "Total Services",
             "execution_order": 1,
-            "linux": "systemctl list-units --type=service --all --no-pager --no-legend | wc -l",
+            "linux": "systemctl list-unit-files --type=service --no-pager --no-legend | wc -l",
             "windows": r'''powershell -NoProfile -Command "@(Get-Service -ErrorAction SilentlyContinue).Count"''',
         },
 
-        {
+       {
             "name": "Failed Services",
             "execution_order": 2,
             "linux": "systemctl --failed --type=service --no-pager --no-legend | wc -l",
-            "windows": r'''powershell -NoProfile -Command "@(Get-CimInstance Win32_Service -ErrorAction SilentlyContinue | Where-Object {$_.StartMode -eq 'Auto' -and $_.State -ne 'Running'}).Count"''',
+            "windows": r'''powershell -NoProfile -Command "@(Get-CimInstance Win32_Service -ErrorAction SilentlyContinue | Where-Object {$_.StartMode -eq 'Auto' -and $_.State -ne 'Running' -and $_.ExitCode -ne 0 -and $_.ExitCode -ne 1077}).Count"''',
         },
 
         {
@@ -390,6 +407,24 @@ KPI_CONFIG = {
             "execution_order": 3,
             "linux": "systemctl list-unit-files --type=service --no-pager --no-legend | awk '$2==\"enabled\" {count++} END {print count+0}'",
             "windows": r'''powershell -NoProfile -Command "@(Get-CimInstance Win32_Service -ErrorAction SilentlyContinue | Where-Object {$_.StartMode -eq 'Auto'}).Count"''',
+        },
+
+        {
+            "name": "Running Services",
+            "execution_order": 4,
+            "linux": "systemctl list-units --type=service --state=running --no-pager --no-legend | wc -l",
+            "windows": r'''powershell -NoProfile -Command "@(Get-Service -ErrorAction SilentlyContinue | Where-Object {$_.Status -eq 'Running'}).Count"''',
+        },
+        {
+            "name": "Stopped Services",
+            "execution_order": 3,
+            "linux": (
+                "for s in $(systemctl list-unit-files --type=service --no-legend | "
+                "awk '$2==\"enabled\"{print $1}'); do "
+                "systemctl is-active --quiet \"$s\" || echo \"$s\"; "
+                "done | wc -l"
+            ),
+            "windows": r'''powershell -NoProfile -Command "@(Get-CimInstance Win32_Service -ErrorAction SilentlyContinue | Where-Object {$_.StartMode -eq 'Auto' -and $_.State -ne 'Running'}).Count"''',
         },
 
     ],
@@ -415,7 +450,7 @@ KPI_CONFIG = {
 
         {
             "name": "Pending Reboot",
-            "execution_order": 4,
+            "execution_order": 3,
             "linux": r'''if [ -f /var/run/reboot-required ] || [ -f /run/reboot-required ]; then echo True; else echo False; fi''',
             "windows": r'''powershell -NoProfile -Command "$reboot=$false; $p1='HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending'; $p2='HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired'; $p3='HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager'; if(Test-Path $p1){$reboot=$true}; if(Test-Path $p2){$reboot=$true}; $x=Get-ItemProperty -Path $p3 -Name PendingFileRenameOperations -ErrorAction SilentlyContinue; if($null -ne $x.PendingFileRenameOperations){$reboot=$true}; if($reboot){'True'}else{'False'}"'''
         }
