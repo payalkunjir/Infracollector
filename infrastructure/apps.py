@@ -15,6 +15,6 @@ class InfrastructureConfig(AppConfig):
         if os.environ.get("RUN_MAIN") != "true":
             return
 
-        from infrastructure.services.schedular import start_scheduler
+        # from infrastructure.services.schedular import start_scheduler
 
-        start_scheduler()
+        # start_scheduler()

@@ -1,4 +1,3 @@
-
 # infrastructure/services/metric_collector.py
 
 import csv
@@ -6,7 +5,13 @@ import re
 
 from infrastructure.config.kpi_config import KPI_CONFIG
 
-from infrastructure.models import MetricSample
+from infrastructure.models import (
+    MetricSample,
+    ProcessMetric,
+    ServiceMetric,
+    NetworkMetric,
+)
+
 
 from infrastructure.services.server_service import (
     get_or_create_local_server
@@ -44,6 +49,20 @@ class MetricCollector:
         if self.os_type == "WINDOWS":
 
             return kpi.get("windows")
+
+        return None
+
+    # ==========================================================
+    # GET DETAIL COMMAND
+    # ==========================================================
+
+    def get_detail_command(self, kpi):
+
+        if self.os_type == "LINUX":
+            return kpi.get("detail_linux")
+
+        if self.os_type == "WINDOWS":
+            return kpi.get("detail_windows")
 
         return None
 
@@ -347,6 +366,517 @@ class MetricCollector:
         return metric
 
     # ==========================================================
+    # PARSE PROCESS DETAIL OUTPUT
+    # ==========================================================
+    def parse_process_details(self, output):
+
+        rows = []
+
+        if not output:
+            return rows
+
+        reader = csv.DictReader(
+            output.splitlines()
+        )
+
+        for row in reader:
+
+            try:
+
+                memory_mb = None
+
+                if row.get("WorkingSet64"):
+                   memory_mb = round(
+                        int(row["WorkingSet64"]) / (1024 * 1024),
+                        2
+                )
+
+                cpu_percent = None
+
+                if row.get("CpuPercent"):
+                    cpu_percent = float(
+                        row["CpuPercent"]
+                    )
+
+                handle_count = None
+
+                if row.get("Handles"):
+                    handle_count = int(
+                        row["Handles"]
+                    )
+
+                process_id = None
+
+                if row.get("Id"):
+                    process_id = int(
+                        row["Id"]
+                    )
+
+                rows.append({
+                    "process_name": row.get(
+                        "ProcessName"
+                    ),
+
+                    "process_id": process_id,
+
+                    "cpu_percent": cpu_percent,
+
+                    "memory_mb": memory_mb,
+
+                    "handle_count": handle_count,
+                })
+
+            except (
+                ValueError,
+                TypeError
+            ) as exc:
+
+                print(
+                    f"Process parse error: {exc}"
+                )
+
+                continue
+
+        return rows
+    # ==========================================================
+    # SAVE PROCESS DETAILS
+    # ==========================================================
+
+    def save_process_metrics(self, server, rows):
+
+        objects = []
+
+        for row in rows:
+
+            if not row.get("process_name"):
+                continue
+
+            objects.append(
+                ProcessMetric(
+                    server=server,
+
+                    process_name=row.get(
+                        "process_name"
+                    ),
+
+                    process_id=row.get(
+                        "process_id"
+                    ),
+
+                    cpu_percent=row.get(
+                        "cpu_percent"
+                    ),
+
+                    memory_mb=row.get(
+                        "memory_mb"
+                    ),
+
+                    handle_count=row.get(
+                        "handle_count"
+                    ),
+                )
+            )
+
+        if objects:
+            ProcessMetric.objects.bulk_create(
+                objects
+            )
+
+        print(
+            f"SAVED ProcessMetric rows: "
+            f"{len(objects)}"
+        )
+
+        return len(objects)
+    # ==========================================================
+    # PARSE SERVICE DETAIL OUTPUT
+    # ==========================================================
+
+    def parse_service_details(self, output):
+
+        rows = []
+
+        if not output:
+            return rows
+
+        text = str(output).strip()
+
+        if not text:
+            return rows
+
+        # Windows CSV output
+        if text.lstrip().startswith('"Name"'):
+
+            try:
+                reader = csv.DictReader(text.splitlines())
+
+                for row in reader:
+
+                    service_name = (
+                        row.get("Name") or ""
+                    ).strip()
+
+                    if not service_name:
+                        continue
+
+                    rows.append({
+                        "service_name": service_name,
+                        "display_name": (
+                            row.get("DisplayName") or ""
+                        ).strip() or None,
+                        "status": (
+                            row.get("State") or ""
+                        ).strip() or None,
+                        "startup_type": (
+                            row.get("StartMode") or ""
+                        ).strip() or None,
+                    })
+
+            except (csv.Error, ValueError):
+                pass
+
+            return rows
+
+        # Linux format:
+        # service_name|display_name|status|startup_type
+        for line in text.splitlines():
+
+            line = line.strip()
+
+            if not line:
+                continue
+
+            parts = line.split("|", 3)
+
+            if len(parts) != 4:
+                continue
+
+            service_name = parts[0].strip()
+
+            if not service_name:
+                continue
+
+            rows.append({
+                "service_name": service_name,
+                "display_name": parts[1].strip() or None,
+                "status": parts[2].strip() or None,
+                "startup_type": parts[3].strip() or None,
+            })
+
+        return rows
+
+    # ==========================================================
+    # SAVE SERVICE DETAILS
+    # ==========================================================
+
+    def save_service_metrics(self, server, rows):
+
+        objects = []
+
+        for row in rows:
+
+            if not row.get("service_name"):
+                continue
+
+            objects.append(
+                ServiceMetric(
+                    server=server,
+                    service_name=row.get("service_name"),
+                    display_name=row.get("display_name"),
+                    status=row.get("status"),
+                    startup_type=row.get("startup_type"),
+                )
+            )
+
+        if objects:
+            ServiceMetric.objects.bulk_create(objects)
+
+        print(
+            f"SAVED ServiceMetric rows: {len(objects)}"
+        )
+
+        return len(objects)
+
+    # ==========================================================
+    # PARSE NETWORK DETAIL OUTPUT
+    # ==========================================================
+
+    def parse_network_details(self, output, protocol):
+
+        rows = []
+
+        if not output:
+            return rows
+
+        text = str(output).strip()
+
+        if not text:
+            return rows
+
+        # Windows CSV output
+        if text.lstrip().startswith('"LocalAddress"'):
+
+            try:
+                reader = csv.DictReader(text.splitlines())
+
+                for row in reader:
+
+                    rows.append({
+                        "protocol": protocol,
+                        "local_address": (
+                            row.get("LocalAddress") or ""
+                        ).strip() or None,
+                        "local_port": self.parse_port(
+                            row.get("LocalPort")
+                        ),
+                        "remote_address": (
+                            row.get("RemoteAddress") or ""
+                        ).strip() or None,
+                        "remote_port": self.parse_port(
+                            row.get("RemotePort")
+                        ),
+                    })
+
+            except (csv.Error, ValueError):
+                pass
+
+            return rows
+
+        # Linux ss output.
+        # Example:
+        # ESTAB 0 0 127.0.0.1:5000 10.0.0.2:443
+        # UDP may have a similar structure.
+        for line in text.splitlines():
+
+            line = line.strip()
+
+            if not line:
+                continue
+
+            # Skip the ss header.
+            if line.lower().startswith("state "):
+                continue
+
+            parts = line.split()
+
+            if len(parts) < 2:
+                continue
+
+            # ss normally has State, Recv-Q, Send-Q, Local, Peer.
+            if len(parts) >= 5:
+                local_endpoint = parts[-2]
+                remote_endpoint = parts[-1]
+            else:
+                local_endpoint = parts[-2]
+                remote_endpoint = parts[-1]
+
+            local_address, local_port = self.split_endpoint(
+                local_endpoint
+            )
+
+            remote_address, remote_port = self.split_endpoint(
+                remote_endpoint
+            )
+
+            rows.append({
+                "protocol": protocol,
+                "local_address": local_address,
+                "local_port": local_port,
+                "remote_address": remote_address,
+                "remote_port": remote_port,
+            })
+
+        return rows
+
+    # ==========================================================
+    # PARSE PORT
+    # ==========================================================
+
+    def parse_port(self, value):
+
+        if value is None:
+            return None
+
+        value = str(value).strip()
+
+        if not value or value in ("*", "-", "None"):
+            return None
+
+        try:
+            return int(value)
+        except (ValueError, TypeError):
+            return None
+
+    # ==========================================================
+    # SPLIT IP:PORT
+    # ==========================================================
+
+    def split_endpoint(self, endpoint):
+
+        if endpoint is None:
+            return None, None
+
+        endpoint = str(endpoint).strip()
+
+        if not endpoint or endpoint in ("*:*", "-*", "-", "*"):
+            return None, None
+
+        # IPv6 in [address]:port format.
+        if endpoint.startswith("[") and "]" in endpoint:
+
+            close = endpoint.rfind("]")
+            address = endpoint[1:close]
+            port = endpoint[close + 1:]
+
+            if port.startswith(":"):
+                port = port[1:]
+
+            return (
+                address or None,
+                self.parse_port(port),
+            )
+
+        # Normal IPv4/hostname:port.
+        if ":" in endpoint:
+
+            address, port = endpoint.rsplit(":", 1)
+
+            return (
+                address or None,
+                self.parse_port(port),
+            )
+
+        return endpoint, None
+
+    # ==========================================================
+    # SAVE NETWORK DETAILS
+    # ==========================================================
+
+    def save_network_metrics(self, server, rows):
+
+        objects = []
+
+        for row in rows:
+
+            objects.append(
+                NetworkMetric(
+                    server=server,
+                    protocol=row.get("protocol") or "UNKNOWN",
+                    local_address=row.get("local_address"),
+                    local_port=row.get("local_port"),
+                    remote_address=row.get("remote_address"),
+                    remote_port=row.get("remote_port"),
+                )
+            )
+
+        if objects:
+            NetworkMetric.objects.bulk_create(objects)
+
+        print(
+            f"SAVED NetworkMetric rows: {len(objects)}"
+        )
+
+        return len(objects)
+
+    # ==========================================================
+    # COLLECT DETAIL DATA
+    # ==========================================================
+
+    def collect_detail_data(
+        self,
+        server,
+        category,
+        kpi,
+    ):
+
+        detail_command = self.get_detail_command(kpi)
+
+        if not detail_command:
+            return
+
+        print()
+        print("DETAIL COLLECTION")
+        print(f"Detail command: {detail_command}")
+
+        try:
+            result = self.collector.execute(
+                detail_command
+            )
+
+        except Exception as exc:
+            print(
+                f"Detail collector exception: {exc}"
+            )
+            return
+
+        if not result.get("success"):
+
+            stderr = (
+                result.get("stderr", "")
+                or ""
+            ).strip()
+
+            print(
+                "Detail command failed:"
+            )
+            print(
+                stderr or "Detail command execution failed."
+            )
+            return
+
+        detail_output = (
+            result.get("stdout", "")
+            or ""
+        ).strip()
+
+        if not detail_output:
+            print(
+                "Detail command returned no data."
+            )
+            return
+
+        print(
+            f"Detail output received: "
+            f"{len(detail_output.splitlines())} lines"
+        )
+
+        if category == "PROCESSES":
+
+            rows = self.parse_process_details(
+                detail_output
+            )
+
+            self.save_process_metrics(
+                server,
+                rows
+            )
+
+        elif category == "SERVICES":
+
+            rows = self.parse_service_details(
+                detail_output
+            )
+
+            self.save_service_metrics(
+                server,
+                rows
+            )
+
+        elif category == "NETWORK":
+
+            protocol = "TCP" if kpi.get("name") == "TCP Connections" else "UDP"
+
+            rows = self.parse_network_details(
+                detail_output,
+                protocol
+            )
+
+            self.save_network_metrics(
+                server,
+                rows
+            )
+
+    # ==========================================================
     # COLLECT ALL KPIs
     # ==========================================================
 
@@ -535,26 +1065,16 @@ class MetricCollector:
                     )
 
                     # ==================================================
-                    # PARSE
+                    # EXISTING SCALAR KPI FLOW
                     # ==================================================
 
                     value = self.parse_value(
-
                         raw_output,
-
                         metric_name=kpi["name"]
                     )
 
                     # ==================================================
                     # FORMAT UPTIME
-                    #
-                    # Command returns seconds:
-                    #
-                    # 11040
-                    #
-                    # Database stores:
-                    #
-                    # 3 h 4 min
                     # ==================================================
 
                     if (
@@ -573,29 +1093,19 @@ class MetricCollector:
                     )
 
                     # ==================================================
-                    # PARSE SUCCESS
+                    # SAVE EXISTING MetricSample
                     # ==================================================
 
                     if value is not None:
 
                         self.save_metric(
-
                             server=server,
-
                             category=category,
-
                             metric_name=kpi["name"],
-
                             value=value,
-
                             raw_output=raw_output,
-
                             status="SUCCESS"
                         )
-
-                    # ==================================================
-                    # PARSE FAILED
-                    # ==================================================
 
                     else:
 
@@ -610,21 +1120,26 @@ class MetricCollector:
                         )
 
                         self.save_metric(
-
                             server=server,
-
                             category=category,
-
                             metric_name=kpi["name"],
-
                             value=None,
-
                             raw_output=raw_output,
-
                             status="PARSE_FAILED",
-
                             error_message=message
                         )
+
+                    # ==================================================
+                    # NEW DETAIL TABLE FLOW
+                    # ==================================================
+                    # Only KPIs having detail_linux/detail_windows
+                    # execute this second command.
+
+                    self.collect_detail_data(
+                        server=server,
+                        category=category,
+                        kpi=kpi
+                    )
 
                 # ==================================================
                 # COMMAND FAILED

@@ -335,14 +335,23 @@ KPI_CONFIG = {
             "execution_order": 2,
             "linux": "ss -tan | tail -n +2 | wc -l",
             "windows": r'''powershell -NoProfile -Command "@(Get-NetTCPConnection -ErrorAction SilentlyContinue).Count"''',
+        
+                    # Detailed rows -> NetworkMetric
+            "detail_linux": "ss -tan",
+            "detail_windows": r'''powershell -NoProfile -Command "Get-NetTCPConnection -ErrorAction SilentlyContinue | Select-Object LocalAddress,LocalPort,RemoteAddress,RemotePort | ConvertTo-Csv -NoTypeInformation"''',
         },
+
 
         {
             "name": "UDP Connections",
             "execution_order": 3,
             "linux": "ss -anu | tail -n +2 | wc -l",
             "windows": r'''powershell -NoProfile -Command "@(Get-NetUDPEndpoint -ErrorAction SilentlyContinue).Count"''',
+             # Detailed rows -> NetworkMetric
+            "detail_linux": "ss -uan",
+            "detail_windows": r'''powershell -NoProfile -Command "Get-NetUDPEndpoint -ErrorAction SilentlyContinue | Select-Object LocalAddress,LocalPort,RemoteAddress,RemotePort | ConvertTo-Csv -NoTypeInformation"''',
         },
+    
 
         {
             "name": "Packet Loss %",
@@ -371,11 +380,26 @@ KPI_CONFIG = {
             "execution_order": 1,
             "linux": "ps -eo pid --no-headers | head -n 10 | wc -l",
             "windows": r'''powershell -NoProfile -Command "@(Get-Process -ErrorAction SilentlyContinue | Sort-Object CPU -Descending | Select-Object -First 10).Count"''',
+            # Detailed rows -> ProcessMetric
+            "detail_linux": r'''for pid in $(ps -eo pid= --sort=-%cpu | head -n 10); do name=$(ps -p "$pid" -o comm=); cpu=$(ps -p "$pid" -o %cpu=); rss=$(ps -p "$pid" -o rss=); handles=$(ls /proc/$pid/fd 2>/dev/null | wc -l); echo "$name|$pid|$cpu|$rss|$handles"; done''',
+            "detail_windows": r'''powershell -NoProfile -Command "$cores=[Environment]::ProcessorCount; $before=@{}; Get-Process -ErrorAction SilentlyContinue | ForEach-Object { try { $before[$_.Id]=$_.TotalProcessorTime.TotalSeconds } catch {} }; Start-Sleep -Seconds 1; Get-Process -ErrorAction SilentlyContinue | ForEach-Object { try { if($before.ContainsKey($_.Id)){ $delta=$_.TotalProcessorTime.TotalSeconds-$before[$_.Id]; $cpu=($delta/$cores)*100; [PSCustomObject]@{ProcessName=$_.ProcessName;Id=$_.Id;Handles=$_.Handles;WorkingSet64=$_.WorkingSet64;CpuPercent=[math]::Round($cpu,2)} } } catch {} } | Sort-Object CpuPercent -Descending | Select-Object -First 10 | ConvertTo-Csv -NoTypeInformation"''',
+        },
+        {
+            "name": "Total Processes",
+            "execution_order": 2,
+            "linux": r'''ps -e --no-headers | wc -l''',
+            "windows": r'''powershell -NoProfile -Command "(Get-Process -ErrorAction SilentlyContinue).Count"''',
         },
 
         {
+             "name": "Active Processes",
+             "execution_order": 3,
+             "linux": r'''ps -e -o stat= | awk '$1 ~ /^R/ {count++} END {print count+0}''',
+             "windows": r'''powershell -NoProfile -Command "(Get-Counter '\Process(*)\% Processor Time' -ErrorAction SilentlyContinue).CounterSamples | Where-Object {$_.InstanceName -notmatch '^_Total$|^Idle$'} | Where-Object {$_.CookedValue -gt 0} | Measure-Object | Select-Object -ExpandProperty Count"''',
+         },       
+        {
             "name": "Thread Count",
-            "execution_order": 2,
+            "execution_order": 4,
             "linux": "ps -eLf --no-headers | wc -l",
             "windows": r'''powershell -NoProfile -Command "$x=@(Get-Process -ErrorAction SilentlyContinue | ForEach-Object {$_.Threads.Count}); [math]::Round(($x | Measure-Object -Sum).Sum,0)"''',
         }
@@ -393,6 +417,9 @@ KPI_CONFIG = {
             "execution_order": 1,
             "linux": "systemctl list-unit-files --type=service --no-pager --no-legend | wc -l",
             "windows": r'''powershell -NoProfile -Command "@(Get-Service -ErrorAction SilentlyContinue).Count"''',
+            # Detailed rows -> ServiceMetric
+            "detail_linux": r'''for s in $(systemctl list-unit-files --type=service --no-legend 2>/dev/null | awk '{print $1}'); do status=$(systemctl is-active "$s" 2>/dev/null); start=$(systemctl is-enabled "$s" 2>/dev/null); echo "$s|$s|$status|$start"; done''',
+            "detail_windows": r'''powershell -NoProfile -Command "Get-CimInstance Win32_Service -ErrorAction SilentlyContinue | Select-Object Name,DisplayName,State,StartMode | ConvertTo-Csv -NoTypeInformation"''',
         },
 
        {

@@ -1,5 +1,5 @@
 from django.db import models
-
+from django.utils import timezone
 
 class Server(models.Model):
 
@@ -78,10 +78,10 @@ class MetricSample(models.Model):
     )
 
     metric_value = models.CharField(
-     max_length=100,
-     null=True,
-     blank=True
-     )
+        max_length=100,
+        null=True,
+        blank=True
+    )
 
     raw_output = models.TextField(
         blank=True,
@@ -105,121 +105,136 @@ class MetricSample(models.Model):
     def __str__(self):
         return f"{self.server.name} - {self.metric_type}"
 
-# class ProcessMetric(models.Model):
 
-#     server = models.ForeignKey(
-#         Server,
-#         on_delete=models.CASCADE,
-#         related_name="process_metrics"
-#     )
+class ProcessMetric(models.Model):
 
-#     process_name = models.CharField(
-#         max_length=255
-#     )
+    server = models.ForeignKey(
+        Server,
+        on_delete=models.CASCADE,
+        related_name="process_metrics"
+    )
 
-#     process_id = models.PositiveIntegerField(
-#         blank=True,
-#         null=True
-#     )
+    process_name = models.CharField(
+        max_length=255
+    )
 
-#     handle_count = models.PositiveIntegerField(
-#         blank=True,
-#         null=True
-#     )
+    process_id = models.PositiveIntegerField(
+        blank=True,
+        null=True
+    )
+
+    cpu_percent = models.FloatField(
+        blank=True,
+        null=True,
+        verbose_name="CPU %"
+    )
+
+    memory_mb = models.FloatField(
+        blank=True,
+        null=True,
+        verbose_name="Memory (MB)"
+    )
+
+    handle_count = models.PositiveIntegerField(
+        blank=True,
+        null=True
+    )
+
+    collection_time = models.DateTimeField(
+        auto_now_add=True,
+        db_index=True
+    )
+
+    def __str__(self):
+        return (
+            f"{self.server.name} - "
+            f"{self.process_name} - "
+            f"{self.process_id}"
+        )
+    
+class ServiceMetric(models.Model):
+
+    server = models.ForeignKey(
+        Server,
+        on_delete=models.CASCADE,
+        related_name="service_metrics"
+    )
+
+    service_name = models.CharField(
+        max_length=255
+    )
+
+    display_name = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True
+    )
+
+    status = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True
+    )
+
+    startup_type = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True
+    )
+
+    collection_time = models.DateTimeField(
+        auto_now_add=True,
+        db_index=True
+    )
+
+    def __str__(self):
+        return (
+            f"{self.server.name} - "
+            f"{self.service_name}"
+        )
 
 
-#     collection_time = models.DateTimeField(
-#         auto_now_add=True
-#     )
+class NetworkMetric(models.Model):
 
-#     def __str__(self):
-#         return (
-#             f"{self.server.name} - "
-#             f"{self.process_name} - "
-#             f"{self.process_id}"
-#         )
+    server = models.ForeignKey(
+        Server,
+        on_delete=models.CASCADE,
+        related_name="network_metrics"
+    )
 
-# class ServiceMetric(models.Model):
+    protocol = models.CharField(
+        max_length=10
+    )
 
-#     server = models.ForeignKey(
-#         Server,
-#         on_delete=models.CASCADE,
-#         related_name="service_metrics"
-#     )
+    local_address = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True
+    )
 
-#     service_name = models.CharField(
-#         max_length=255
-#     )
+    local_port = models.PositiveIntegerField(
+        null=True,
+        blank=True
+    )
 
-#     display_name = models.CharField(
-#         max_length=255,
-#         blank=True,
-#         null=True
-#     )
+    remote_address = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True
+    )
 
-#     status = models.CharField(
-#         max_length=50,
-#         blank=True,
-#         null=True
-#     )
+    remote_port = models.PositiveIntegerField(
+        null=True,
+        blank=True
+    )
 
-#     start_type = models.CharField(
-#         max_length=50,
-#         blank=True,
-#         null=True
-#     )
+    collection_time = models.DateTimeField(
+        auto_now_add=True,
+        db_index=True
+    )
 
-#     collection_time = models.DateTimeField(
-#         auto_now_add=True
-#     )
-
-
-#     def __str__(self):
-#         return (
-#             f"{self.server.name} - "
-#             f"{self.service_name}"
-#         )
-
-# class NetworkMetric(models.Model):
-
-    # server = models.ForeignKey(
-    #     Server,
-    #     on_delete=models.CASCADE,
-    #     related_name="network_metrics"
-    # )
-
-    # protocol = models.CharField(
-    #     max_length=10
-    # )
-
-    # local_address = models.CharField(
-    #     max_length=100,
-    #     blank=True,
-    #     null=True
-    # )
-
-    # local_port = models.PositiveIntegerField(
-    #     null=True,
-    #     blank=True
-    # )
-
-    # remote_address = models.CharField(
-    #     max_length=100,
-    #     blank=True,
-    #     null=True
-    # )
-
-    # remote_port = models.PositiveIntegerField(
-    #     null=True,
-    #     blank=True
-    # )
-
-    # collection_time = models.DateTimeField(
-    #     auto_now_add=True
-    # )
-
-    # def __str__(self):
-    #     return (
-    #         f"{self.server.name} - "
-    #         f"{self.protocol}"
-    #     )
+    def __str__(self):
+        return (
+            f"{self.server.name} - "
+            f"{self.protocol}"
+        )
