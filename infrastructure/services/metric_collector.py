@@ -417,41 +417,41 @@ class MetricCollector:
     
             return rows
 
-    # Linux format: name|pid|cpu|rss(kb)|handles
-    for line in text.splitlines():
-        line = line.strip()
-
-        if not line:
-            continue
-
-        parts = line.split("|")
-
-        if len(parts) != 5:
-            continue
-
-        name, pid, cpu, rss, handles = parts
-
-        try:
-            rows.append({
-                "process_name": name.strip() or None,
-                "process_id": int(pid) if pid.strip() else None,
-                "cpu_percent": float(cpu) if cpu.strip() else None,
-                "memory_mb": (
-                    round(int(rss) / 1024, 2)
-                    if rss.strip()
-                    else None
-                ),
-                "handle_count": (
-                    int(handles)
-                    if handles.strip()
-                    else None
-                ),
-            })
-
-        except (ValueError, TypeError):
-            continue
-
-    return rows
+        # Linux format: name|pid|cpu|rss(kb)|handles
+        for line in text.splitlines():
+            line = line.strip()
+    
+            if not line:
+                continue
+    
+            parts = line.split("|")
+    
+            if len(parts) != 5:
+                continue
+    
+            name, pid, cpu, rss, handles = parts
+    
+            try:
+                rows.append({
+                    "process_name": name.strip() or None,
+                    "process_id": int(pid) if pid.strip() else None,
+                    "cpu_percent": float(cpu) if cpu.strip() else None,
+                    "memory_mb": (
+                        round(int(rss) / 1024, 2)
+                        if rss.strip()
+                        else None
+                    ),
+                    "handle_count": (
+                        int(handles)
+                        if handles.strip()
+                        else None
+                    ),
+                })
+    
+            except (ValueError, TypeError):
+                continue
+    
+        return rows
     # ==========================================================
     # SAVE PROCESS DETAILS
     # ==========================================================
