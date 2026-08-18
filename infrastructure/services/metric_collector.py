@@ -437,7 +437,7 @@ class MetricCollector:
         except (ValueError, TypeError):
             continue
 
-    return rows
+        return rows
     # ==========================================================
     # SAVE PROCESS DETAILS
     # ==========================================================
