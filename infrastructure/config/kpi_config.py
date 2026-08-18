@@ -394,7 +394,7 @@ KPI_CONFIG = {
         {
              "name": "Active Processes",
              "execution_order": 3,
-             "linux": r'''ps -e -o stat= | awk '$1 ~ /^R/ {count++} END {print count+0}''',
+             "linux": r"""ps -e -o stat= | awk '$1 ~ /^R/ {count++} END {print count+0}'""",
              "windows": r'''powershell -NoProfile -Command "(Get-Counter '\Process(*)\% Processor Time' -ErrorAction SilentlyContinue).CounterSamples | Where-Object {$_.InstanceName -notmatch '^_Total$|^Idle$'} | Where-Object {$_.CookedValue -gt 0} | Measure-Object | Select-Object -ExpandProperty Count"''',
          },       
         {
@@ -444,7 +444,7 @@ KPI_CONFIG = {
         },
         {
             "name": "Stopped Services",
-            "execution_order": 3,
+            "execution_order": 5,
             "linux": (
                 "for s in $(systemctl list-unit-files --type=service --no-legend | "
                 "awk '$2==\"enabled\"{print $1}'); do "
@@ -471,7 +471,7 @@ KPI_CONFIG = {
         {
             "name": "Logged Users",
             "execution_order": 2,
-            "linux": "who | wc -l",
+            "linux": "loginctl list-sessions --no-legend | wc -l",
             "windows": r'''powershell -NoProfile -Command "@(quser 2>$null | Select-Object -Skip 1).Count"''',
         },
 
