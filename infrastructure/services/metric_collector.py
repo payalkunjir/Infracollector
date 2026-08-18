@@ -388,7 +388,9 @@ class MetricCollector:
                 try:
                     memory_mb = None
                     if row.get("WorkingSet64"):
-                        memory_mb = round(int(row["WorkingSet64"]) / (1024 * 1024), 2)
+                        memory_mb = round(
+                            int(row["WorkingSet64"]) / (1024 * 1024), 2
+                        )
     
                     cpu_percent = None
                     if row.get("CpuPercent"):
@@ -409,6 +411,7 @@ class MetricCollector:
                         "memory_mb": memory_mb,
                         "handle_count": handle_count,
                     })
+    
                 except (ValueError, TypeError):
                     continue
     
@@ -417,10 +420,12 @@ class MetricCollector:
     # Linux format: name|pid|cpu|rss(kb)|handles
     for line in text.splitlines():
         line = line.strip()
+
         if not line:
             continue
 
         parts = line.split("|")
+
         if len(parts) != 5:
             continue
 
@@ -431,13 +436,22 @@ class MetricCollector:
                 "process_name": name.strip() or None,
                 "process_id": int(pid) if pid.strip() else None,
                 "cpu_percent": float(cpu) if cpu.strip() else None,
-                "memory_mb": round(int(rss) / 1024, 2) if rss.strip() else None,
-                "handle_count": int(handles) if handles.strip() else None,
+                "memory_mb": (
+                    round(int(rss) / 1024, 2)
+                    if rss.strip()
+                    else None
+                ),
+                "handle_count": (
+                    int(handles)
+                    if handles.strip()
+                    else None
+                ),
             })
+
         except (ValueError, TypeError):
             continue
 
-        return rows
+    return rows
     # ==========================================================
     # SAVE PROCESS DETAILS
     # ==========================================================
