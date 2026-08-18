@@ -370,74 +370,74 @@ class MetricCollector:
     # ==========================================================
     def parse_process_details(self, output):
 
-        rows = []
+    rows = []
 
-        if not output:
-            return rows
+    if not output:
+        return rows
 
-        reader = csv.DictReader(
-            output.splitlines()
-        )
+    text = str(output).strip()
+    if not text:
+        return rows
+
+    # Windows CSV output
+    if text.lstrip().startswith('"ProcessName"'):
+
+        reader = csv.DictReader(text.splitlines())
 
         for row in reader:
-
             try:
-
                 memory_mb = None
-
                 if row.get("WorkingSet64"):
-                   memory_mb = round(
-                        int(row["WorkingSet64"]) / (1024 * 1024),
-                        2
-                )
+                    memory_mb = round(int(row["WorkingSet64"]) / (1024 * 1024), 2)
 
                 cpu_percent = None
-
                 if row.get("CpuPercent"):
-                    cpu_percent = float(
-                        row["CpuPercent"]
-                    )
+                    cpu_percent = float(row["CpuPercent"])
 
                 handle_count = None
-
                 if row.get("Handles"):
-                    handle_count = int(
-                        row["Handles"]
-                    )
+                    handle_count = int(row["Handles"])
 
                 process_id = None
-
                 if row.get("Id"):
-                    process_id = int(
-                        row["Id"]
-                    )
+                    process_id = int(row["Id"])
 
                 rows.append({
-                    "process_name": row.get(
-                        "ProcessName"
-                    ),
-
+                    "process_name": row.get("ProcessName"),
                     "process_id": process_id,
-
                     "cpu_percent": cpu_percent,
-
                     "memory_mb": memory_mb,
-
                     "handle_count": handle_count,
                 })
-
-            except (
-                ValueError,
-                TypeError
-            ) as exc:
-
-                print(
-                    f"Process parse error: {exc}"
-                )
-
+            except (ValueError, TypeError):
                 continue
 
         return rows
+
+    # Linux format: name|pid|cpu|rss(kb)|handles
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+
+        parts = line.split("|")
+        if len(parts) != 5:
+            continue
+
+        name, pid, cpu, rss, handles = parts
+
+        try:
+            rows.append({
+                "process_name": name.strip() or None,
+                "process_id": int(pid) if pid.strip() else None,
+                "cpu_percent": float(cpu) if cpu.strip() else None,
+                "memory_mb": round(int(rss) / 1024, 2) if rss.strip() else None,
+                "handle_count": int(handles) if handles.strip() else None,
+            })
+        except (ValueError, TypeError):
+            continue
+
+    return rows
     # ==========================================================
     # SAVE PROCESS DETAILS
     # ==========================================================
