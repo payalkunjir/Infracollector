@@ -467,11 +467,11 @@ KPI_CONFIG = {
             "execution_order": 1,
             "linux": "awk '{printf \"%.0f\", $1}' /proc/uptime",
             "windows": r'''powershell -NoProfile -Command "$boot=(Get-CimInstance Win32_OperatingSystem).LastBootUpTime; [math]::Round(((Get-Date)-$boot).TotalSeconds,0)"''',
-        },
+        },S
         {
             "name": "Logged Users",
             "execution_order": 2,
-            "linux": "loginctl list-sessions --no-legend | wc -l",
+            "linux": "loginctl list-sessions --no-legend | awk '{print $3}' | sort -u | wc -l",
             "windows": r'''powershell -NoProfile -Command "@(quser 2>$null | Select-Object -Skip 1).Count"''',
         },
 
